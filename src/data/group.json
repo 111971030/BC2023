@@ -1,57 +1,32 @@
 [
   {
-    "groupCode": 8585,
-    "groupName": "家扶基金會",
-    "groupType": "弱勢兒童少年類"
-  },
-  {
-    "groupCode": 885521,
-    "groupName": "中華民國兒童福利聯盟文教基金會",
-    "groupType": "弱勢兒童少年類"
-  },
-  {
     "groupCode": 7000,
     "groupName": "台灣世界展望會",
-    "groupType": "弱勢兒童少年類"
+    "groupType": "弱勢兒童少年類",
+    "groupID":5
   },
   {
     "groupCode": 919,
     "groupName": "創世社會福利基金會",
-    "groupType": "疾病與健康關懷"
-  },
-  {
-    "groupCode": 590,
-    "groupName": "弘道老人福利基金會",
-    "groupType": "疾病與健康關懷"
+    "groupType": "疾病與健康關懷",
+    "groupID":6
   },
   {
     "groupCode": 9118595,
     "groupName": "勵馨社會福利事業基金會",
-    "groupType": "生活就業經濟類"
+    "groupType": "生活就業經濟類",
+    "groupID":7
   },
   {
     "groupCode": 88432,
     "groupName": "喜憨兒社會福利基金會",
-    "groupType": "生活就業經濟類"
-  },
-  {
-    "groupCode": 321,
-    "groupName": "中華民國唐氏症基金會",
-    "groupType": "生活就業經濟類"
+    "groupType": "生活就業經濟類",
+    "groupID":8
   },
   {
     "groupCode": 7299,
     "groupName": "社團法人中華民國保護動物協會",
-    "groupType": "生態環保與動物類"
-  },
-  {
-    "groupCode": 1973999,
-    "groupName": "社團法人台北市野鳥學會",
-    "groupType": "生態環保與動物類"
-  },
-  {
-    "groupCode": 8999,
-    "groupName": "社團法人中華民國荒野保護協會",
-    "groupType": "生態環保與動物類"
+    "groupType": "生態環保與動物類",
+    "groupID":9
   }
 ]

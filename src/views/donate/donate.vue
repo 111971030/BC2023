@@ -1,7 +1,7 @@
 <template>
   <div class="app-container">
 
-    <template>
+    <!-- <template>
       <div>
         <span v-html="msg" />
         <p class="greeting">{{ greeting }}</p>
@@ -11,64 +11,55 @@
         <button @click="readContract">讀取合約</button>
       </div>
     </template>
+    -->
 
     <div class="filter-container">
-      <el-select v-model="listQuery.groupLocation" placeholder="機關或團體類型" clearable style="width: 200px">
+      <span style="margin-left: 10px;">帳號：</span>
+      <!-- <el-input v-model="CurrentAccount" style="width: 400px; margin-left: 10px;" readonly/> -->
+      <el-select v-model="accountID" placeholder="選擇User" clearable style="width: 200px; margin-left: 10px;" @change="changeUser()">
+        <el-option v-for="item in userData" :key="item.userID" :label="item.userName" :value="item.userID" />
+      </el-select>
+      <span style="margin-left: 10px;">餘額：</span>
+      <el-input v-model="CurrentAccountBalance" style="width: 400px; margin-left: 10px;" readonly />&nbsp;
+      <br><br>
+      <span style="margin-left: 10px;">捐款：</span>
+      <el-select v-model="listQuery.groupLocation" placeholder="選擇機關或團體類型" clearable style="width: 200px; margin-left: 10px;">
         <el-option v-for="item in list" :key="item.groupCode" :label="item.groupCode + ' ' + item.groupName" :value="item.groupCode" />
       </el-select>
-      <el-input v-model="listQuery.groupName" placeholder="捐贈金額" style="width: 200px; margin-left: 10px;" />
-      <el-button style="margin-left: 10px;" type="primary" icon="el-icon-coin" @click="handleCreate">
+      <el-input v-model="DonateCoin" placeholder="捐贈金額" style="width: 200px; margin-left: 10px;" />
+      <el-button style="margin-left: 10px;" type="primary" icon="el-icon-coin" @click="sendTransaction()">
         Donate
+      </el-button>
+      <el-button style="margin-left: 10px;" type="primary" icon="el-icon-coin" @click="checkConnection()">
+        checkConnection
       </el-button>
     </div>
     <hr>
 
-    <h4 style="color:#606266">捐贈紀錄</h4>
-    <el-table
-      :key="tableKey"
-      v-loading="listLoading"
-      :data="list"
-      border
-      fit
-      highlight-current-row
-      style="width: 100%;"
-      @sort-change="sortChange"
-    >
-      <el-table-column label="捐贈碼" align="center">
-        <template slot-scope="{row}">
-          <span>{{ row.groupCode }}</span>
-        </template>
-      </el-table-column>
-      <el-table-column label="機關或團體類型" align="center">
-        <template slot-scope="{row}">
-          <span>{{ row.groupType }}</span>
-        </template>
-      </el-table-column>
-      <el-table-column label="機關或團體名稱" align="center">
-        <template slot-scope="{row}">
-          <span>{{ row.groupName }}</span>
-        </template>
-      </el-table-column>
-    </el-table>
-
-    <pagination v-show="total>0" :total="total" :page.sync="listQuery.page" :limit.sync="listQuery.limit" @pagination="getList" />
-
+    <h4 style="color:#606266">捐贈明細</h4>
+    <ul>
+      <li
+        v-for="(value, key) in transactionReceipt"
+        :key="key"
+      >
+        {{ key }}: {{ value }}
+      </li>
+    </ul>
   </div>
 </template>
 
 <script>
 import Web3 from 'web3'
 import Contract from 'web3-eth-contract'
-import MSHKABIContractABI from '../../../static/ABI/MSHK.json' // 引入 Truffle 编译后的合约文件
+import MSHKABIContractABI from '../../../static/ABI/MSHK.json' // 導入Truffle編譯後的合約文件
 import { fetchPv, createArticle, updateArticle } from '@/api/article'
 import waves from '@/directive/waves' // waves directive
 import { parseTime } from '@/utils'
-import Pagination from '@/components/Pagination' // secondary package based on el-pagination
+import userData from '@/data/user.json'
 import groupData from '@/data/group.json'
 
 export default {
   name: 'ComplexTable',
-  components: { Pagination },
   directives: { waves },
   filters: {
     statusFilter(status) {
@@ -84,6 +75,7 @@ export default {
     return {
       tableKey: 0,
       list: null,
+      userList: null,
       total: 0,
       listLoading: true,
       listQuery: {
@@ -119,17 +111,24 @@ export default {
         title: [{ required: true, message: 'title is required', trigger: 'blur' }]
       },
       downloadLoading: false,
+      userData: userData,
       groupData: groupData,
       ContractABI: MSHKABIContractABI, // 調用智能合約JSON的接口
       msg: '',
       greeting: 'Hello World! Welcome to mshk.top',
-      GanacheUrl: 'localhost:8545',
+      GanacheUrl: '172.16.58.58:8545',
       CurrentAccount: null,
-      NewContract: null
+      CurrentAccountBalance: null,
+      NewContract: null,
+      transactionReceipt: null,
+      transactionHash: null,
+      DonateCoin: 0,
+      accountID: 0
     }
   },
   created() {
     this.getList()
+    this.getUserList()
   },
   mounted() {
     if (typeof this.web3 !== 'undefined') {
@@ -141,63 +140,145 @@ export default {
     }
     // 合約本地Ganache的RPC接口
     Contract.setProvider('ws://' + this.GanacheUrl)
+    this.readAccount()
   },
   methods: {
     checkConnection() {
+      var obj = this
       if (this.web3) {
-        const isListening = this.web3.eth.net.isListening()
-        console.log(isListening)
+        this.web3.eth.net.isListening()
+          .then((result) => {
+            if (result) {
+              obj.$message({
+                message: '連線正常',
+                type: 'success',
+                duration: 1000
+              })
+            }
+          })
       }
+    },
+    changeUser() {
+      this.readAccount()
     },
     readAccount() {
       var obj = this
-      // 读取帐号列表
+      // 讀取帳號列表
       this.web3.eth.getAccounts().then(function(accounts) {
-        obj.CurrentAccount = accounts[0]
-        obj.msg = '目前讀取到的帳號為：' + obj.CurrentAccount // 取得 Ganache 建立的第一個帳號
+        obj.CurrentAccount = accounts[obj.accountID]
+        // obj.msg = '目前讀取到的帳號為：' + obj.CurrentAccount // 取得 Ganache 建立的第一個帳號
+        obj.getBalance()
       })
     },
-    readContract() { // 读取合约
-      var obj = this
-      // 使用 JSON 接口、合约地址，创建一个新的合约实例，其所有方法和事件都在其json 接口对象中定义。
-      var contract = new Contract(this.ContractABI.abi, obj.NewContract.options.address)
-      // 调用合约中的 hello 方法，并赋值到 this.msg 中，输出到页面
-      contract.methods.hello().call().then(s => {
-        this.msg = s
+    sendTransaction() {
+      var toAddress = 1
+      this.web3.eth.getAccounts().then((accounts) => {
+        try {
+          const transactionObject = {
+            from: this.CurrentAccount,
+            to: accounts[toAddress],
+            value: this.web3.utils.toWei(this.DonateCoin.toString(), 'ether')
+          }
+
+          this.web3.eth.sendTransaction(transactionObject)
+            .then((result) => {
+              this.$message({
+                message: '捐款成功',
+                type: 'success',
+                duration: 1000
+              })
+              this.transactionReceipt = result
+              this.getBalance()
+              console.log('Transaction receipt:', this.transactionReceipt)
+            })
+            .catch((error) => {
+              console.error('Error sending transaction:', error)
+            })
+        } catch (error) {
+          console.error('Error sending transaction:', error)
+        }
       })
     },
-    deployContract() { // 部署合约
-      var obj = this
-      if (obj.CurrentAccount == null) {
-        obj.msg = '请先读取帐号'
-        return
+    getTransaction(transactionHash) {
+      try {
+        this.web3.eth.getTransaction(transactionHash)
+          .then((result) => {
+            this.transactionReceipt = result
+            console.log('Transaction details:', this.transactionReceipt)
+          })
+      } catch (error) {
+        console.error('Error getting transaction:', error)
       }
-      var outMsg = []
-      var contract = new Contract(this.ContractABI.abi, this.ContractAddr)
-      contract.options.data = this.ContractABI.deployedBytecode
-      contract.deploy({
-        data: obj.ContractABI.bytecode // 合约的字节码
-      })
-        .send({
-          from: obj.CurrentAccount, // 交易的发送地址
-          gas: 1500000, // 交易提供的最大 Gas
-          gasPrice: '30000000000000' // 用于此交易的以 wei 为单位的 gas 价格
+    },
+    getBalance() {
+      var obj = this
+      try {
+        this.web3.eth.getBalance(this.CurrentAccount, function(error, wei) {
+          if (!error) {
+            obj.CurrentAccountBalance = obj.web3.utils.fromWei(wei, 'ether') + ' ETH'
+          }
         })
-        .on('error', function(error) { // 如果在发送过程中发生错误，则触发。
-          obj.msg = 'error:' + error
-        })
-        .on('transactionHash', function(transactionHash) { // 当交易哈希可用时触发。
-          console.log(transactionHash)
-        })
-        .on('receipt', function(receipt) { // 当交易收据可用时触发。来自合约的收据将没有属性，而是具有事件名称作为键和事件作为属性的属性。
-          outMsg.push('Transaction:' + receipt.transactionHash) // 交易哈希
-          outMsg.push('Contract created:' + receipt.contractAddress) // 合约创建的地址
-          outMsg.push('Gas usage:' + receipt.gasUsed) // 使用的Gas
-          outMsg.push('Block number:' + receipt.blockNumber) // 区块
-          obj.msg = outMsg.join('<br/ >')
-        }).then(function(newContractInstance) {
-          obj.NewContract = newContractInstance // instance with the new contract address
-        })
+      } catch (error) {
+        console.error('Error getting balance:', error)
+      }
+    },
+    // readContract() { // 讀取合約
+    //   var obj = this
+    //   // 使用 JSON 接口、合約地址，建立一个新的合約實例，其所有方法和事件都在其json接口對象中定義。
+    //   var contract = new Contract(this.ContractABI.abi, obj.NewContract.options.address)
+    //   // var contract = new Contract(this.ContractABI.abi, this.ContractAddr)
+    //   // 使用合約中的 hello 方法，並傳值到 this.msg 中，輸出到頁面
+    //   contract.methods.signContract().call().then(s => {
+    //     contract.methods.readSignedContract().call().then(s => {
+    //       this.msg = s
+    //       console.log(s)
+    //     })
+    //   })
+    // },
+    // deployContract() { // 部署合約
+    //   var obj = this
+    //   if (obj.CurrentAccount == null) {
+    //     // obj.msg = '請先讀取帳號'
+    //     // ElMessage.error('請先讀取帳號.')
+    //     return
+    //   }
+    //   var outMsg = []
+    //   var contract = new Contract(this.ContractABI.abi, this.ContractAddr)
+    //   contract.options.data = this.ContractABI.deployedBytecode
+    //   contract.deploy({
+    //     data: obj.ContractABI.bytecode // 合約的bytecode
+    //   })
+    //     .send({
+    //       from: obj.CurrentAccount, // 交易的發送地址
+    //       gas: 1500000, // 交易提供的最大 Gas
+    //       gasPrice: '30000000000000' // 用於此交易的 gas 價格
+    //     })
+    //     .on('error', function(error) { // 如果在發送過程中發生錯誤，則觸發。
+    //       // obj.msg = 'error:' + error
+    //       // ElMessage.error('系統發生錯誤.'+'error:' + error)
+    //     })
+    //     .on('transactionHash', function(transactionHash) { // 當交易hash可用時觸發。
+    //       console.log(transactionHash)
+    //       // ElMessage({
+    //       //   message: '捐款成功',
+    //       //   type: 'success',
+    //       // })
+    //     })
+    //     .on('receipt', function(receipt) { // 当交易收據可用時觸發。来自合約的收據將沒有屬性，而是具有事件名稱作為key和事件作為屬性的屬性。
+    //       outMsg.push('Transaction:' + receipt.transactionHash) // 交易hash
+    //       outMsg.push('Contract created:' + receipt.contractAddress) // 合約創建的地址
+    //       outMsg.push('Gas usage:' + receipt.gasUsed) // 使用的Gas
+    //       outMsg.push('Block number:' + receipt.blockNumber) // block
+    //       obj.msg = outMsg.join('<br/ >')
+    //       console.log(outMsg.join('<br/ >'))
+    //     }).then(function(newContractInstance) {
+    //       obj.NewContract = newContractInstance // instance with the new contract address
+    //     })
+    // },
+    getUserList() {
+      this.listLoading = true
+      this.userList = this.userData
+      this.listLoading = false
     },
     getList() {
       this.listLoading = true
@@ -211,7 +292,7 @@ export default {
     },
     handleModifyStatus(row, status) {
       this.$message({
-        message: '操作Success',
+        message: '操作成功',
         type: 'success'
       })
       row.status = status
@@ -280,7 +361,7 @@ export default {
       this.$refs['dataForm'].validate((valid) => {
         if (valid) {
           const tempData = Object.assign({}, this.temp)
-          tempData.timestamp = +new Date(tempData.timestamp) // change Thu Nov 30 2017 16:41:05 GMT+0800 (CST) to 1512031311464
+          tempData.timestamp = +new Date(tempData.timestamp)
           updateArticle(tempData).then(() => {
             const index = this.list.findIndex(v => v.id === this.temp.id)
             this.list.splice(index, 1, this.temp)
