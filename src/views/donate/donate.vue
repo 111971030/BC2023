@@ -218,7 +218,7 @@ export default {
       this.web3.eth.getAccounts().then(function(accounts) {
         obj.accountList = accounts
         obj.CurrentAccount = accounts[obj.accountID]
-        // obj.msg = '目前讀取到的帳號為：' + obj.CurrentAccount // 取得 Ganache 建立的第一個帳號
+        // console.log('目前讀取到的帳號為：' + obj.CurrentAccount)
         obj.getBalance()
         obj.getTransactionList()
       })
@@ -245,7 +245,7 @@ export default {
               this.getTransaction(this.transactionResult.transactionHash)
               this.getBalance()
 
-              console.log('Transaction receipt:', this.transactionResult)
+              // console.log('Transaction receipt:', this.transactionResult)
             })
             .catch((error) => {
               console.error('Error sending transaction:', error)
@@ -261,7 +261,7 @@ export default {
           .then((result) => {
             this.transactionReceipt = result
             this.getTransactionList()
-            console.log('Transaction details:', this.transactionReceipt)
+            // console.log('Transaction details:', this.transactionReceipt)
           })
       } catch (error) {
         console.error('Error getting transaction:', error)
@@ -282,23 +282,26 @@ export default {
     getTransactionList() {
       const obj = this
       this.transactionList = []
-      this.web3.eth.getTransactionCount(this.CurrentAccount)
-        .then(count => {
+      // console.log(this.CurrentAccount)
+      // this.web3.eth.getTransactionCount(this.CurrentAccount)
+      this.web3.eth.getTransactionFromBlock('latest')
+        .then(result => {
+          const count = result.blockNumber
+          // console.log(count);
           // Retrieve transactions
           for (let i = count; i >= 0; i--) {
             // console.log(i);
             obj.web3.eth.getBlock(i)
               .then(blockData => {
                 const blockHash = blockData.transactions[0]
-                // console.log(blockHash);
                 obj.web3.eth.getTransaction(blockHash)
                   .then(tx => {
-                    // console.log(tx);
                     if (tx && tx.from === obj.CurrentAccount) {
                       tx.transact_datatime = obj.timeConverter(blockData.timestamp)
                       tx.group = obj.getGroupName(tx['to'])
                       tx.eth = obj.web3.utils.fromWei(tx['value'].toString(), 'ether')
                       obj.transactionList.push(tx)
+                      // console.log(obj.transactionList)
                     }
                   })
                   .catch(error => {
