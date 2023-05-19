@@ -23,28 +23,74 @@
       <el-input v-model="CurrentAccountBalance" style="width: 400px; margin-left: 10px;" readonly />&nbsp;
       <br><br>
       <span style="margin-left: 10px;">捐款：</span>
-      <el-select v-model="listQuery.groupLocation" placeholder="選擇機關或團體類型" clearable style="width: 200px; margin-left: 10px;">
-        <el-option v-for="item in list" :key="item.groupCode" :label="item.groupCode + ' ' + item.groupName" :value="item.groupCode" />
+      <el-select v-model="groupID" clearable style="width: 200px; margin-left: 10px;">
+        <el-option v-for="item in list" :key="item.groupID" :label="item.groupCode + ' ' + item.groupName" :value="item.groupID" />
       </el-select>
       <el-input v-model="DonateCoin" placeholder="捐贈金額" style="width: 200px; margin-left: 10px;" />
       <el-button style="margin-left: 10px;" type="primary" icon="el-icon-coin" @click="sendTransaction()">
         Donate
       </el-button>
-      <el-button style="margin-left: 10px;" type="primary" icon="el-icon-coin" @click="checkConnection()">
+      <!-- <el-button style="margin-left: 10px;" type="primary" icon="el-icon-coin" @click="checkConnection()">
         checkConnection
-      </el-button>
+      </el-button> -->
     </div>
     <hr>
+    <el-tabs v-model="activeName">
+      <el-tab-pane label="交易清單" name="first">
+        <el-table :data="transactionList" style="width: 100%;padding-top: 15px;">
+          <el-table-column label="捐款日期">
+            <template slot-scope="{row}">
+              {{ row.transact_datatime }}
+            </template>
+          </el-table-column>
+          <el-table-column label="捐贈單位">
+            <template slot-scope="{row}">
+              {{ row.group }}
+            </template>
+          </el-table-column>
+          <el-table-column label="捐款金額(Eth)">
+            <template slot-scope="{row}">
+              {{ row.eth }}
+            </template>
+          </el-table-column>
+        </el-table>
+      </el-tab-pane>
+      <el-tab-pane label="交易明細" name="second">
+        <table style="table-layout: fixed; width: 100%">
+          <tr>
+            <th style="width:50%"><h4 style="color:#606266">交易明細</h4></th>
+            <th style="width:50%"><h4 style="color:#606266">收據明細</h4></th>
+          </tr>
+          <tr>
+            <td style="width:50%; word-wrap: break-word">
+              <template>
+                <ul>
+                  <li
+                    v-for="(value, key) in transactionResult"
+                    :key="key"
+                  >
+                    {{ key }}: {{ value }}
+                  </li>
+                </ul>
+              </template>
+            </td>
+            <td style="width:50%; word-wrap: break-word">
+              <template>
+                <ul>
+                  <li
+                    v-for="(value, key) in transactionReceipt"
+                    :key="key"
+                  >
+                    {{ key }}: {{ value }}
+                  </li>
+                </ul>
+              </template>
+            </td>
+          </tr>
+        </table>
+      </el-tab-pane>
+    </el-tabs>
 
-    <h4 style="color:#606266">捐贈明細</h4>
-    <ul>
-      <li
-        v-for="(value, key) in transactionReceipt"
-        :key="key"
-      >
-        {{ key }}: {{ value }}
-      </li>
-    </ul>
   </div>
 </template>
 
@@ -116,14 +162,19 @@ export default {
       ContractABI: MSHKABIContractABI, // 調用智能合約JSON的接口
       msg: '',
       greeting: 'Hello World! Welcome to mshk.top',
-      GanacheUrl: '172.16.58.58:8545',
+      GanacheUrl: '127.0.0.1:8545',
       CurrentAccount: null,
       CurrentAccountBalance: null,
       NewContract: null,
+      transactionResult: null,
       transactionReceipt: null,
       transactionHash: null,
+      transactionList: [],
       DonateCoin: 0,
-      accountID: 0
+      accountList: null,
+      accountID: 0,
+      groupID: 5,
+      activeName: 'first'
     }
   },
   created() {
@@ -165,13 +216,16 @@ export default {
       var obj = this
       // 讀取帳號列表
       this.web3.eth.getAccounts().then(function(accounts) {
+        obj.accountList = accounts
         obj.CurrentAccount = accounts[obj.accountID]
         // obj.msg = '目前讀取到的帳號為：' + obj.CurrentAccount // 取得 Ganache 建立的第一個帳號
         obj.getBalance()
+        obj.getTransactionList()
       })
     },
     sendTransaction() {
-      var toAddress = 1
+      this.activeName = 'second'
+      var toAddress = this.groupID
       this.web3.eth.getAccounts().then((accounts) => {
         try {
           const transactionObject = {
@@ -187,9 +241,11 @@ export default {
                 type: 'success',
                 duration: 1000
               })
-              this.transactionReceipt = result
+              this.transactionResult = result
+              this.getTransaction(this.transactionResult.transactionHash)
               this.getBalance()
-              console.log('Transaction receipt:', this.transactionReceipt)
+
+              console.log('Transaction receipt:', this.transactionResult)
             })
             .catch((error) => {
               console.error('Error sending transaction:', error)
@@ -204,6 +260,7 @@ export default {
         this.web3.eth.getTransaction(transactionHash)
           .then((result) => {
             this.transactionReceipt = result
+            this.getTransactionList()
             console.log('Transaction details:', this.transactionReceipt)
           })
       } catch (error) {
@@ -222,59 +279,61 @@ export default {
         console.error('Error getting balance:', error)
       }
     },
-    // readContract() { // 讀取合約
-    //   var obj = this
-    //   // 使用 JSON 接口、合約地址，建立一个新的合約實例，其所有方法和事件都在其json接口對象中定義。
-    //   var contract = new Contract(this.ContractABI.abi, obj.NewContract.options.address)
-    //   // var contract = new Contract(this.ContractABI.abi, this.ContractAddr)
-    //   // 使用合約中的 hello 方法，並傳值到 this.msg 中，輸出到頁面
-    //   contract.methods.signContract().call().then(s => {
-    //     contract.methods.readSignedContract().call().then(s => {
-    //       this.msg = s
-    //       console.log(s)
-    //     })
-    //   })
-    // },
-    // deployContract() { // 部署合約
-    //   var obj = this
-    //   if (obj.CurrentAccount == null) {
-    //     // obj.msg = '請先讀取帳號'
-    //     // ElMessage.error('請先讀取帳號.')
-    //     return
-    //   }
-    //   var outMsg = []
-    //   var contract = new Contract(this.ContractABI.abi, this.ContractAddr)
-    //   contract.options.data = this.ContractABI.deployedBytecode
-    //   contract.deploy({
-    //     data: obj.ContractABI.bytecode // 合約的bytecode
-    //   })
-    //     .send({
-    //       from: obj.CurrentAccount, // 交易的發送地址
-    //       gas: 1500000, // 交易提供的最大 Gas
-    //       gasPrice: '30000000000000' // 用於此交易的 gas 價格
-    //     })
-    //     .on('error', function(error) { // 如果在發送過程中發生錯誤，則觸發。
-    //       // obj.msg = 'error:' + error
-    //       // ElMessage.error('系統發生錯誤.'+'error:' + error)
-    //     })
-    //     .on('transactionHash', function(transactionHash) { // 當交易hash可用時觸發。
-    //       console.log(transactionHash)
-    //       // ElMessage({
-    //       //   message: '捐款成功',
-    //       //   type: 'success',
-    //       // })
-    //     })
-    //     .on('receipt', function(receipt) { // 当交易收據可用時觸發。来自合約的收據將沒有屬性，而是具有事件名稱作為key和事件作為屬性的屬性。
-    //       outMsg.push('Transaction:' + receipt.transactionHash) // 交易hash
-    //       outMsg.push('Contract created:' + receipt.contractAddress) // 合約創建的地址
-    //       outMsg.push('Gas usage:' + receipt.gasUsed) // 使用的Gas
-    //       outMsg.push('Block number:' + receipt.blockNumber) // block
-    //       obj.msg = outMsg.join('<br/ >')
-    //       console.log(outMsg.join('<br/ >'))
-    //     }).then(function(newContractInstance) {
-    //       obj.NewContract = newContractInstance // instance with the new contract address
-    //     })
-    // },
+    getTransactionList() {
+      const obj = this
+      this.transactionList = []
+      this.web3.eth.getTransactionCount(this.CurrentAccount)
+        .then(count => {
+          // Retrieve transactions
+          for (let i = count; i >= 0; i--) {
+            // console.log(i);
+            obj.web3.eth.getBlock(i)
+              .then(blockData => {
+                const blockHash = blockData.transactions[0]
+                // console.log(blockHash);
+                obj.web3.eth.getTransaction(blockHash)
+                  .then(tx => {
+                    // console.log(tx);
+                    if (tx && tx.from === obj.CurrentAccount) {
+                      tx.transact_datatime = obj.timeConverter(blockData.timestamp)
+                      tx.group = obj.getGroupName(tx['to'])
+                      tx.eth = obj.web3.utils.fromWei(tx['value'].toString(), 'ether')
+                      obj.transactionList.push(tx)
+                    }
+                  })
+                  .catch(error => {
+                    console.error(`Error retrieving transaction ${i}:`, error)
+                  })
+              })
+          }
+        })
+        .catch(error => {
+          console.error('Error retrieving transaction count:', error)
+        })
+    },
+    timeConverter(UNIX_timestamp) {
+      var a = new Date(UNIX_timestamp * 1000)
+      var year = a.getFullYear()
+      var month = a.getMonth()
+      var date = a.getDate()
+      var hour = a.getHours()
+      var min = a.getMinutes()
+      var sec = a.getSeconds()
+      var time = year + '/' + month + '/' + date + ' ' + hour + ':' + min + ':' + sec
+      return time
+    },
+    getGroupName(groupHash) {
+      const groupID = this.accountList.indexOf(groupHash)
+      for (let i = 0; i < this.groupData.length; i++) {
+        const obj = this.groupData[i]
+        // console.log(obj.groupID);
+        if (obj.groupID === groupID) {
+          const groupName = obj.groupName
+          // console.log(groupName)
+          return groupName
+        }
+      }
+    },
     getUserList() {
       this.listLoading = true
       this.userList = this.userData

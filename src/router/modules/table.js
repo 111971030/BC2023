@@ -35,13 +35,14 @@ const tableRouter = {
       component: () => import('@/views/table/groupManagement'),
       name: 'Group Management',
       meta: { title: 'Group Management' }
-    },
-    {
-      path: 'assetManagement',
-      component: () => import('@/views/table/assetManagement'),
-      name: 'Asset Management',
-      meta: { title: 'Asset Management' }
     }
+
+    // {
+    //   path: 'assetManagement',
+    //   component: () => import('@/views/table/assetManagement'),
+    //   name: 'Asset Management',
+    //   meta: { title: 'Asset Management' }
+    // }
   ]
 }
 export default tableRouter
