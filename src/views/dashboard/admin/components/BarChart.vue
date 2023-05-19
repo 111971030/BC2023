@@ -34,7 +34,7 @@ export default {
   data() {
     return {
       chart: null,
-      GanacheUrl: '127.0.0.1:8545',
+      GanacheUrl: '172.16.58.168:8545',
       groupList: [],
       userData: userData,
       groupData: groupData,

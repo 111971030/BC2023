@@ -162,7 +162,7 @@ export default {
       ContractABI: MSHKABIContractABI, // 調用智能合約JSON的接口
       msg: '',
       greeting: 'Hello World! Welcome to mshk.top',
-      GanacheUrl: '127.0.0.1:8545',
+      GanacheUrl: '172.16.58.168:8545',
       CurrentAccount: null,
       CurrentAccountBalance: null,
       NewContract: null,
